@@ -33,8 +33,10 @@ setup(
     """,
     install_requires=[
         "sqlite-utils>=2.4.2",
-        # "requests-oauthlib~=1.2.0",
-        # "python-dateutil",
+        # For clickup_client.
+        "httpx",
+        "loguru",
+        "pydantic",
     ],
     extras_require={"test": ["pytest"]},
     tests_require=["clickup-to-sqlite[test]"],
