@@ -4,7 +4,7 @@ from typing import Optional
 import click
 from sqlite_utils import Database
 
-from .clickup_client import Client
+from .clickup_client import Client, Task
 
 
 def fetch_teams(db: Database, client: Client) -> None:
@@ -71,6 +71,30 @@ def fetch_folders_and_lists(db: Database, client: Client, space_id: str) -> None
         db["lists"].add_foreign_key("space_id", "spaces", "id")
 
 
+def fetch_tasks(db: Database, client: Client, team_id: str) -> None:
+    tasks = list(client.get_filtered_team_tasks(team_id, {"include_closed": True, "subtasks": True}))
+
+    def format_task(task: Task) -> dict:
+        task_dict = task.dict(exclude={"list", "project", "folder", "space"})
+        task_dict.update({
+            "list_id": task.list.id,
+            "project_id": task.project.id,
+            "folder_id": task.folder.id,
+            "space_id": task.space.id,
+        })
+        return task_dict
+
+    task_dicts = [format_task(t) for t in tasks]
+
+    init_tasks = not db["tasks"].exists()
+    db["tasks"].insert_all(task_dicts, pk="id")
+    if init_tasks:
+        db["tasks"].add_foreign_key("list_id", "lists", "id")
+        db["tasks"].add_foreign_key("folder_id", "folders", "id")
+        db["tasks"].add_foreign_key("space_id", "spaces", "id")
+        db["tasks"].add_foreign_key("team_id", "teams", "id")
+
+
 @click.group()
 def cli():
     pass
@@ -92,6 +116,10 @@ def fetch(db_path: str):
     fetch_teams(db, client)
     fetch_spaces(db, client)
 
+    team_ids = [r["id"] for r in db.query("SELECT id FROM teams")]
     space_ids = [r["id"] for r in db.query("SELECT id FROM spaces")]
     for space_id in space_ids:
         fetch_folders_and_lists(db, client, space_id=space_id)
+
+    for team_id in team_ids:
+        fetch_tasks(db, client, team_id=team_id)
