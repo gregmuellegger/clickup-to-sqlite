@@ -266,6 +266,27 @@ class Client:
         params = {key: encode_value(value) for key, value in params.items()}
         return self._request("GET", path, params=params)
 
+    def get_raw(
+        self, path: str, params: Optional[dict] = None, pop_toplevel: bool = True
+    ):
+        """
+        ``pop_toplevel``: If ``True``, then we assume that the response is a
+        JSON object with exactly one key at the toplevel. This is the norm for
+        clickup responses. E.g. ``{"tasks": [...]}``.
+        """
+
+        def pop_toplevel_key(data: dict):
+            keys = list(data.keys())
+            assert (
+                len(keys) == 1
+            ), f"Expected exactly one key at toplevel of response, got {keys}"
+            return data.pop(keys[0])
+
+        return self._cast(
+            lambda data: pop_toplevel_key(data) if pop_toplevel else data,
+            self.get(path, params=params),
+        )
+
     def post(self, path: str, data: dict, params: Optional[dict] = None):
         encode_value = (
             lambda value: value if isinstance(value, str) else json.dumps(value)
@@ -305,16 +326,12 @@ class Client:
         )
 
     def get_folders_raw(self, space_id: str, archived: bool = False) -> List[dict]:
-        return self._cast(
-            lambda data: data["folders"],
-            self.get(f"space/{space_id}/folder", {"archived": archived}),
-        )
+        return self.get_raw(f"space/{space_id}/folder", {"archived": archived})
 
-    def get_folderless_lists_raw(self, space_id: str, archived: bool = False) -> List[dict]:
-        return self._cast(
-            lambda data: data["lists"],
-            self.get(f"space/{space_id}/list", {"archived": archived}),
-        )
+    def get_folderless_lists_raw(
+        self, space_id: str, archived: bool = False
+    ) -> List[dict]:
+        return self.get_raw(f"space/{space_id}/list", {"archived": archived})
 
     def get_task(self, task_id: str, include_subtasks: bool = False) -> Task:
         return self._cast(
@@ -322,7 +339,7 @@ class Client:
             self.get(
                 f"task/{task_id}/",
                 {**({"include_subtasks": "1"} if include_subtasks else {})},
-            )
+            ),
         )
 
     def get_filtered_team_tasks(self, team_id: str, params: dict) -> Iterable[Task]:
@@ -359,7 +376,13 @@ class Client:
 
     # Time Tracking 2.0
 
-    def get_time_entries_within_a_date_range(self, team_id: int, start_date: datetime, end_date: datetime, assignee: Optional[int] = None):
+    def get_time_entries_within_a_date_range(
+        self,
+        team_id: int,
+        start_date: datetime,
+        end_date: datetime,
+        assignee: Optional[int] = None,
+    ):
         assignee_opts = {"assignee": assignee} if assignee is not None else {}
         return self._cast(
             lambda data: TimeEntries(**data).data,
@@ -369,8 +392,8 @@ class Client:
                     "start_date": self.datetime_to_posix(start_date),
                     "end_date": self.datetime_to_posix(end_date),
                     **assignee_opts,
-                }
-            )
+                },
+            ),
         )
 
     @classmethod
