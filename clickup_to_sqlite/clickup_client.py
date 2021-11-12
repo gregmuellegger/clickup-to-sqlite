@@ -378,7 +378,7 @@ class Client:
 
     def get_time_entries_within_a_date_range(
         self,
-        team_id: int,
+        team_id: str,
         start_date: datetime,
         end_date: datetime,
         assignee: Optional[int] = None,

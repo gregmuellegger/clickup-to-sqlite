@@ -1,10 +1,11 @@
 import os
+from datetime import datetime
 from typing import Optional
 
 import click
 from sqlite_utils import Database
 
-from .clickup_client import Client, Task
+from .clickup_client import Client, Task, TimeEntry
 
 
 def fetch_teams(db: Database, client: Client) -> None:
@@ -72,16 +73,22 @@ def fetch_folders_and_lists(db: Database, client: Client, space_id: str) -> None
 
 
 def fetch_tasks(db: Database, client: Client, team_id: str) -> None:
-    tasks = list(client.get_filtered_team_tasks(team_id, {"include_closed": True, "subtasks": True}))
+    tasks = list(
+        client.get_filtered_team_tasks(
+            team_id, {"include_closed": True, "subtasks": True}
+        )
+    )
 
     def format_task(task: Task) -> dict:
         task_dict = task.dict(exclude={"list", "project", "folder", "space"})
-        task_dict.update({
-            "list_id": task.list.id,
-            "project_id": task.project.id,
-            "folder_id": task.folder.id,
-            "space_id": task.space.id,
-        })
+        task_dict.update(
+            {
+                "list_id": task.list.id,
+                "project_id": task.project.id,
+                "folder_id": task.folder.id,
+                "space_id": task.space.id,
+            }
+        )
         return task_dict
 
     task_dicts = [format_task(t) for t in tasks]
@@ -93,6 +100,37 @@ def fetch_tasks(db: Database, client: Client, team_id: str) -> None:
         db["tasks"].add_foreign_key("folder_id", "folders", "id")
         db["tasks"].add_foreign_key("space_id", "spaces", "id")
         db["tasks"].add_foreign_key("team_id", "teams", "id")
+
+
+def fetch_time_entries(
+    db: Database, client: Client, team_id: str, start_date: datetime, end_date: datetime
+) -> None:
+    time_entries = list(
+        client.get_time_entries_within_a_date_range(
+            team_id, start_date=start_date, end_date=end_date
+        )
+    )
+
+    def format_time_entries(time: TimeEntry) -> dict:
+        time_dict = time.dict(exclude={"task", "user", "duration"})
+        time_dict.update(
+            {
+                "team_id": team_id,
+                "user_id": time.user.id,
+                "task_id": time.task.id if time.task is not None else None,
+                "duration": time.duration.total_seconds(),
+            }
+        )
+        return time_dict
+
+    time_dicts = [format_time_entries(t) for t in time_entries]
+
+    init_table = not db["timeentries"].exists()
+    db["timeentries"].insert_all(time_dicts, pk="id")
+    if init_table:
+        db["timeentries"].add_foreign_key("task_id", "tasks", "id")
+        db["timeentries"].add_foreign_key("user_id", "members", "id")
+        db["timeentries"].add_foreign_key("team_id", "teams", "id")
 
 
 @click.group()
@@ -123,3 +161,12 @@ def fetch(db_path: str):
 
     for team_id in team_ids:
         fetch_tasks(db, client, team_id=team_id)
+
+    now = datetime.utcnow()
+    start_date = now.replace(year=now.year - 10)
+    end_date = now.replace(year=now.year + 10)
+
+    for team_id in team_ids:
+        fetch_time_entries(
+            db, client, team_id=team_id, start_date=start_date, end_date=end_date
+        )
