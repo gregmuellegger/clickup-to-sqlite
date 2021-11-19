@@ -2,8 +2,6 @@ import os
 
 from setuptools import setup
 
-VERSION = "0.1"
-
 
 def get_long_description():
     with open(
@@ -26,7 +24,8 @@ setup(
         "Changelog": "https://github.com/gregmuellegger/clickup-to-sqlite/releases",
     },
     license="Apache License, Version 2.0",
-    version=VERSION,
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
     packages=["clickup_to_sqlite"],
     entry_points="""
         [console_scripts]
