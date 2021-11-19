@@ -144,11 +144,18 @@ def cli():
     type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
     required=True,
 )
-def fetch(db_path: str):
+@click.option(
+    "--access-token",
+    envvar="CLICKUP_ACCESS_TOKEN",
+    help=(
+        "Your personal access token. Retrieve from ClickUp at "
+        "'Settings > My Apps > Apps > API Token'. Will read from "
+        "CLICKUP_ACCESS_TOKEN environment variable."
+    ),
+)
+def fetch(db_path: str, access_token: str):
     # TODO: Make this available via some auth flow.
-    # For now copy from ClickUp at "Settings > My Apps > Apps > API Token".
-    token = os.environ["CLICKUP_ACCESS_TOKEN"]
-    client = Client(token)
+    client = Client(access_token)
     db = Database(db_path)
 
     fetch_teams(db, client)
