@@ -19,9 +19,9 @@ def fetch_teams(db: Database, client: Client) -> None:
             members_dict.append({"team_id": team_json["id"], **member["user"]})
         teams_dict.append(team_json)
 
-    db["teams"].insert_all(teams_dict, pk="id")
-    db["members"].insert_all(members_dict, pk="id")
-    db["members"].add_foreign_key("team_id", "teams", "id")
+    db["teams"].insert_all(teams_dict, pk="id", replace=True)
+    db["members"].insert_all(members_dict, pk="id", replace=True)
+    db["members"].add_foreign_key("team_id", "teams", "id", ignore=True)
 
 
 def fetch_spaces(db: Database, client: Client) -> None:
@@ -31,7 +31,7 @@ def fetch_spaces(db: Database, client: Client) -> None:
         spaces = client.get_spaces(team_id)
         for space in spaces:
             space_dicts.append(space.dict())
-    db["spaces"].insert_all(space_dicts, pk="id")
+    db["spaces"].insert_all(space_dicts, pk="id", replace=True)
 
 
 def fetch_folders_and_lists(db: Database, client: Client, space_id: str) -> None:
@@ -59,17 +59,12 @@ def fetch_folders_and_lists(db: Database, client: Client, space_id: str) -> None
     for list_dict in folderless_list_dicts:
         lists.append(format_list(list_dict))
 
-    init_folders = not db["folders"].exists()
-    init_lists = not db["lists"].exists()
+    db["folders"].insert_all(folders, pk="id", replace=True)
+    db["folders"].add_foreign_key("space_id", "spaces", "id", ignore=True)
 
-    db["folders"].insert_all(folders, pk="id")
-    if init_folders:
-        db["folders"].add_foreign_key("space_id", "spaces", "id")
-
-    db["lists"].insert_all(lists, pk="id")
-    if init_lists:
-        db["lists"].add_foreign_key("folder_id", "folders", "id")
-        db["lists"].add_foreign_key("space_id", "spaces", "id")
+    db["lists"].insert_all(lists, pk="id", replace=True)
+    db["lists"].add_foreign_key("folder_id", "folders", "id", ignore=True)
+    db["lists"].add_foreign_key("space_id", "spaces", "id", ignore=True)
 
 
 def fetch_tasks(db: Database, client: Client, team_id: str) -> None:
@@ -93,13 +88,11 @@ def fetch_tasks(db: Database, client: Client, team_id: str) -> None:
 
     task_dicts = [format_task(t) for t in tasks]
 
-    init_tasks = not db["tasks"].exists()
-    db["tasks"].insert_all(task_dicts, pk="id")
-    if init_tasks:
-        db["tasks"].add_foreign_key("list_id", "lists", "id")
-        db["tasks"].add_foreign_key("folder_id", "folders", "id")
-        db["tasks"].add_foreign_key("space_id", "spaces", "id")
-        db["tasks"].add_foreign_key("team_id", "teams", "id")
+    db["tasks"].insert_all(task_dicts, pk="id", replace=True)
+    db["tasks"].add_foreign_key("list_id", "lists", "id", ignore=True)
+    db["tasks"].add_foreign_key("folder_id", "folders", "id", ignore=True)
+    db["tasks"].add_foreign_key("space_id", "spaces", "id", ignore=True)
+    db["tasks"].add_foreign_key("team_id", "teams", "id", ignore=True)
 
 
 def fetch_time_entries(
@@ -125,12 +118,10 @@ def fetch_time_entries(
 
     time_dicts = [format_time_entries(t) for t in time_entries]
 
-    init_table = not db["timeentries"].exists()
-    db["timeentries"].insert_all(time_dicts, pk="id")
-    if init_table:
-        db["timeentries"].add_foreign_key("task_id", "tasks", "id")
-        db["timeentries"].add_foreign_key("user_id", "members", "id")
-        db["timeentries"].add_foreign_key("team_id", "teams", "id")
+    db["timeentries"].insert_all(time_dicts, pk="id", replace=True)
+    db["timeentries"].add_foreign_key("task_id", "tasks", "id", ignore=True)
+    db["timeentries"].add_foreign_key("user_id", "members", "id", ignore=True)
+    db["timeentries"].add_foreign_key("team_id", "teams", "id", ignore=True)
 
 
 @click.group()
@@ -154,6 +145,13 @@ def cli():
     ),
 )
 def fetch(db_path: str, access_token: str):
+    """
+    Fetch data from clickup and store into DB_PATH. If the database already
+    exists, then entries will be updated.
+
+    Entries that have been deleted from clickup will not be removed from the
+    database though.
+    """
     # TODO: Make this available via some auth flow.
     client = Client(access_token)
     db = Database(db_path)
