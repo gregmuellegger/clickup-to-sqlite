@@ -43,7 +43,7 @@ using something like [direnv](https://direnv.net/).
 To download your ClickUp data into a sqlite database run the following command:
 
 ```
-$ clickup-to-sqlite fetch --auth-token=pk_YOUR_PERSONAL_TOKEN clickup.sqlite
+$ clickup-to-sqlite fetch --access-token=pk_YOUR_PERSONAL_TOKEN clickup.sqlite
 ```
 
 Note: Currently the data fetching will run into the rate limit applied by the
