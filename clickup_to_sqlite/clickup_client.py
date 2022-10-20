@@ -6,6 +6,7 @@ However this hasn't been extracted to another library yet. So I keep it here for
 personal use.
 """
 import json
+import time
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from itertools import count
@@ -348,9 +349,15 @@ class Client:
                 **params,
                 "page": page,
             }
+            try:
+                response = self.get(f"team/{team_id}/task", params=params)
+            except Exception as exc:
+                logger.exception("Got an exception during request, retrying after cooldown")
+                time.sleep(65)
+                response = self.get(f"team/{team_id}/task", params=params)
             tasks = self._cast(
                 lambda data: Tasks(**data).tasks,
-                self.get(f"team/{team_id}/task", params=params),
+                response,
             )
             if len(tasks) == 0:
                 return
